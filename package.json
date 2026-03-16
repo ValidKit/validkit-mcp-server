@@ -1,19 +1,19 @@
 {
   "name": "@validkit/mcp-server",
-  "version": "1.0.0",
-  "description": "Model Context Protocol (MCP) server for ValidKit email validation - works with any MCP-compatible AI assistant",
+  "version": "1.1.0",
+  "description": "Model Context Protocol (MCP) server for ValidKit email validation - works with Claude Code, Cursor, Windsurf, and any MCP-compatible AI assistant",
   "main": "dist/index.js",
   "type": "module",
   "scripts": {
     "build": "tsc",
     "start": "node dist/index.js",
     "dev": "tsx src/index.ts",
-    "test": "tsx src/cli.ts",
+    "test": "vitest run",
+    "test:coverage": "vitest run --coverage",
     "prepare": "npm run build"
   },
   "bin": {
-    "validkit-mcp": "./dist/index.js",
-    "validkit-mcp-test": "./dist/cli.js"
+    "validkit-mcp": "./dist/index.js"
   },
   "keywords": [
     "mcp",
@@ -21,23 +21,29 @@
     "validkit",
     "model-context-protocol",
     "claude",
+    "cursor",
+    "windsurf",
     "ai-tools"
   ],
   "author": "ValidKit",
   "license": "MIT",
+  "engines": {
+    "node": ">=20.0.0"
+  },
   "dependencies": {
-    "@modelcontextprotocol/sdk": "^0.3.0",
-    "axios": "^1.6.2",
-    "dotenv": "^16.3.1"
+    "@modelcontextprotocol/sdk": "^1.27.1",
+    "zod": "^3.24.0"
   },
   "devDependencies": {
     "@types/node": "^20.10.0",
+    "@vitest/coverage-v8": "^3.0.0",
     "tsx": "^4.7.0",
-    "typescript": "^5.3.2"
+    "typescript": "^5.3.2",
+    "vitest": "^3.0.0"
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/jesselpalmer/validkit-mcp-server.git"
+    "url": "https://github.com/ValidKit/validkit-mcp-server.git"
   },
   "files": [
     "dist",

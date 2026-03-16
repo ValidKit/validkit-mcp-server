@@ -1,357 +1,239 @@
 #!/usr/bin/env node
-import { Server } from '@modelcontextprotocol/sdk/server/index.js';
+import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
-import {
-  CallToolRequestSchema,
-  ErrorCode,
-  ListToolsRequestSchema,
-  McpError,
-} from '@modelcontextprotocol/sdk/types.js';
-import axios from 'axios';
-import dotenv from 'dotenv';
+import { z } from 'zod';
 
-dotenv.config();
+export const VERSION = '1.1.0';
 
-const API_KEY = process.env.VALIDKIT_API_KEY;
-const API_BASE_URL = process.env.VALIDKIT_API_URL || 'https://api.validkit.com';
-const IS_DEMO_MODE = !API_KEY || API_KEY === 'demo';
-
-interface ValidKitResponse {
-  email: string;
-  valid: boolean;
-  status: 'valid' | 'invalid' | 'unknown';
-  reason?: string;
-  checks?: {
-    syntax: boolean;
-    dns: boolean;
-    mx: boolean;
-    disposable: boolean;
-    role: boolean;
-    free: boolean;
-  };
-  metadata?: {
-    domain: string;
-    provider?: string;
-    did_you_mean?: string;
-  };
+export function getApiBaseUrl(): string {
+  return process.env.VALIDKIT_API_URL || 'https://api.validkit.com';
 }
 
-interface BulkValidKitResponse {
-  results: ValidKitResponse[];
-  summary: {
-    total: number;
-    valid: number;
-    invalid: number;
-    unknown: number;
-  };
-}
-
-class ValidKitMCPServer {
-  private server: Server;
-
-  constructor() {
-    this.server = new Server(
-      {
-        name: 'validkit-mcp',
-        vendor: 'ValidKit',
-        version: '1.0.0',
-        description: 'Email validation through ValidKit API',
-      },
-      {
-        capabilities: {
-          tools: {},
-        },
-      }
+export function getApiKey(): string {
+  const key = process.env.VALIDKIT_API_KEY;
+  if (!key || key.trim() === '') {
+    throw new Error(
+      'VALIDKIT_API_KEY environment variable is required. Get your free API key at https://validkit.com/get-started'
     );
-
-    this.setupHandlers();
-    
-    // Error handling
-    this.server.onerror = (error) => console.error('[MCP Error]', error);
-    process.on('SIGINT', async () => {
-      await this.server.close();
-      process.exit(0);
-    });
   }
+  return key;
+}
 
-  private setupHandlers() {
-    this.server.setRequestHandler(ListToolsRequestSchema, async () => ({
-      tools: [
-        {
-          name: 'validate_email',
-          description: 'Validate a single email address using ValidKit API',
-          inputSchema: {
-            type: 'object',
-            properties: {
-              email: {
-                type: 'string',
-                description: 'Email address to validate',
-              },
-              detailed: {
-                type: 'boolean',
-                description: 'Return detailed validation checks (default: false)',
-                default: false,
-              },
-            },
-            required: ['email'],
-          },
-        },
-        {
-          name: 'validate_emails_bulk',
-          description: 'Validate multiple email addresses in bulk (up to 1000)',
-          inputSchema: {
-            type: 'object',
-            properties: {
-              emails: {
-                type: 'array',
-                items: {
-                  type: 'string',
-                },
-                description: 'Array of email addresses to validate',
-                maxItems: 1000,
-              },
-              detailed: {
-                type: 'boolean',
-                description: 'Return detailed validation checks for each email (default: false)',
-                default: false,
-              },
-            },
-            required: ['emails'],
-          },
-        },
-      ],
-    }));
+export async function callApi(
+  path: string,
+  method: 'GET' | 'POST',
+  body?: unknown
+): Promise<{ ok: boolean; status: number; data: unknown }> {
+  const apiKey = getApiKey();
 
-    this.server.setRequestHandler(CallToolRequestSchema, async (request) => {
-      if (IS_DEMO_MODE) {
-        console.error('[ValidKit] Running in DEMO mode. Set VALIDKIT_API_KEY to use real API.');
-      }
+  const response = await fetch(`${getApiBaseUrl()}${path}`, {
+    method,
+    headers: {
+      'X-API-Key': apiKey,
+      'Content-Type': 'application/json',
+      'User-Agent': `validkit-mcp/${VERSION}`,
+    },
+    ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
+  });
 
-      switch (request.params.name) {
-        case 'validate_email':
-          return this.validateEmail(request.params.arguments);
-        
-        case 'validate_emails_bulk':
-          return this.validateEmailsBulk(request.params.arguments);
-        
-        default:
-          throw new McpError(
-            ErrorCode.MethodNotFound,
-            `Unknown tool: ${request.params.name}`
-          );
-      }
-    });
-  }
+  const data = await response.json();
+  return { ok: response.ok, status: response.status, data };
+}
 
-  private async validateEmail(args: any) {
-    const { email, detailed = false } = args;
+export function formatApiError(
+  status: number,
+  data: unknown
+): { text: string; isError: true } {
+  const message =
+    (data as { error?: { message?: string } })?.error?.message ||
+    'Unknown error';
 
-    if (!email || typeof email !== 'string') {
-      throw new McpError(
-        ErrorCode.InvalidParams,
-        'Email parameter is required and must be a string'
-      );
-    }
-
-    // Demo mode - return mock data
-    if (IS_DEMO_MODE) {
-      const mockResponse: ValidKitResponse = {
-        email,
-        valid: !email.includes('invalid') && email.includes('@'),
-        status: email.includes('invalid') ? 'invalid' : 'valid',
-        reason: email.includes('invalid') ? 'Domain does not exist' : undefined,
-        checks: {
-          syntax: email.includes('@'),
-          dns: !email.includes('invalid'),
-          mx: !email.includes('invalid'),
-          disposable: email.includes('disposable'),
-          role: email.startsWith('admin@') || email.startsWith('info@'),
-          free: email.includes('gmail.com') || email.includes('yahoo.com'),
-        },
-        metadata: {
-          domain: email.split('@')[1] || '',
-        },
-      };
-
-      if (detailed) {
-        return {
-          content: [
-            {
-              type: 'text',
-              text: `[DEMO MODE]\n${JSON.stringify(mockResponse, null, 2)}`,
-            },
-          ],
-        };
-      }
-
+  switch (status) {
+    case 401:
       return {
-        content: [
-          {
-            type: 'text',
-            text: `[DEMO MODE]
-Email: ${mockResponse.email}
-Status: ${mockResponse.status}
-Valid: ${mockResponse.valid}${mockResponse.reason ? `\nReason: ${mockResponse.reason}` : ''}`,
-          },
-        ],
+        text: `Authentication failed: ${message}. Check your VALIDKIT_API_KEY is correct. Get a key at https://validkit.com/get-started`,
+        isError: true,
       };
-    }
-
-    try {
-      const response = await axios.post(
-        `${API_BASE_URL}/v1/verify`,
-        { email },
-        {
-          headers: {
-            'X-API-Key': API_KEY,
-            'Content-Type': 'application/json',
-            'User-Agent': 'ValidKit-MCP/1.0.0',
-          },
-        }
-      );
-
-      const data = response.data as ValidKitResponse;
-
-      if (detailed) {
-        return {
-          content: [
-            {
-              type: 'text',
-              text: JSON.stringify(data, null, 2),
-            },
-          ],
-        };
-      }
-
-      // Compact response for token efficiency
-      const summary = `Email: ${data.email}
-Status: ${data.status}
-Valid: ${data.valid}${data.reason ? `\nReason: ${data.reason}` : ''}${
-        data.metadata?.did_you_mean
-          ? `\nDid you mean: ${data.metadata.did_you_mean}`
-          : ''
-      }`;
-
+    case 403:
       return {
-        content: [
-          {
-            type: 'text',
-            text: summary,
-          },
-        ],
+        text: `Quota exceeded: ${message}. Upgrade your plan at https://validkit.com/pricing`,
+        isError: true,
       };
-    } catch (error: any) {
-      if (error.response) {
-        throw new McpError(
-          ErrorCode.InternalError,
-          `ValidKit API error: ${error.response.data?.error?.message || error.response.statusText}`
-        );
-      }
-      throw new McpError(
-        ErrorCode.InternalError,
-        `Failed to validate email: ${error.message}`
-      );
-    }
-  }
-
-  private async validateEmailsBulk(args: any) {
-    const { emails, detailed = false } = args;
-
-    if (!emails || !Array.isArray(emails)) {
-      throw new McpError(
-        ErrorCode.InvalidParams,
-        'Emails parameter is required and must be an array'
-      );
-    }
-
-    if (emails.length === 0) {
-      throw new McpError(
-        ErrorCode.InvalidParams,
-        'Emails array cannot be empty'
-      );
-    }
-
-    if (emails.length > 1000) {
-      throw new McpError(
-        ErrorCode.InvalidParams,
-        'Maximum 1000 emails allowed per bulk request'
-      );
-    }
-
-    try {
-      const response = await axios.post(
-        `${API_BASE_URL}/v1/verify/batch`,
-        { emails },
-        {
-          headers: {
-            'X-API-Key': API_KEY,
-            'Content-Type': 'application/json',
-            'User-Agent': 'ValidKit-MCP/1.0.0',
-          },
-        }
-      );
-
-      const data = response.data as BulkValidKitResponse;
-
-      if (detailed) {
-        return {
-          content: [
-            {
-              type: 'text',
-              text: JSON.stringify(data, null, 2),
-            },
-          ],
-        };
-      }
-
-      // Compact summary for token efficiency
-      const validEmails = data.results
-        .filter((r) => r.valid)
-        .map((r) => r.email);
-      const invalidEmails = data.results
-        .filter((r) => !r.valid)
-        .map((r) => `${r.email} (${r.reason || 'invalid'})`);
-
-      const summary = `Bulk Validation Results:
-Total: ${data.summary.total}
-Valid: ${data.summary.valid}
-Invalid: ${data.summary.invalid}
-
-Valid emails:
-${validEmails.join('\n') || 'None'}
-
-Invalid emails:
-${invalidEmails.join('\n') || 'None'}`;
-
+    case 429:
       return {
-        content: [
-          {
-            type: 'text',
-            text: summary,
-          },
-        ],
+        text: `Rate limited: ${message}. Wait a moment and try again.`,
+        isError: true,
       };
-    } catch (error: any) {
-      if (error.response) {
-        throw new McpError(
-          ErrorCode.InternalError,
-          `ValidKit API error: ${error.response.data?.error?.message || error.response.statusText}`
-        );
-      }
-      throw new McpError(
-        ErrorCode.InternalError,
-        `Failed to validate emails: ${error.message}`
-      );
-    }
-  }
-
-  async run() {
-    const transport = new StdioServerTransport();
-    await this.server.connect(transport);
-    console.error('ValidKit MCP server running on stdio');
+    default:
+      return {
+        text: `API error (${status}): ${message}. Try again later.`,
+        isError: true,
+      };
   }
 }
 
-// Start the server
-const server = new ValidKitMCPServer();
-server.run().catch(console.error);
+export function createServer(): McpServer {
+  const server = new McpServer({
+    name: 'validkit',
+    version: VERSION,
+  });
+
+  server.registerTool(
+    'validate_email',
+    {
+      title: 'Validate Email',
+      description:
+        'Validate a single email address. Returns deliverability status, syntax/DNS/MX checks, disposable/role/free detection, and typo suggestions.',
+      inputSchema: z.object({
+        email: z.string().describe('Email address to validate'),
+      }),
+    },
+    async ({ email }) => {
+      try {
+        const { ok, status, data } = await callApi('/v1/verify', 'POST', {
+          email,
+        });
+
+        if (!ok) {
+          const error = formatApiError(status, data);
+          return {
+            content: [{ type: 'text' as const, text: error.text }],
+            isError: true,
+          };
+        }
+
+        return {
+          content: [
+            { type: 'text' as const, text: JSON.stringify(data, null, 2) },
+          ],
+        };
+      } catch (error) {
+        const message =
+          error instanceof Error ? error.message : 'Unknown error';
+        return {
+          content: [
+            {
+              type: 'text' as const,
+              text: `Failed to validate email: ${message}`,
+            },
+          ],
+          isError: true,
+        };
+      }
+    }
+  );
+
+  server.registerTool(
+    'validate_emails_bulk',
+    {
+      title: 'Validate Emails (Bulk)',
+      description:
+        'Validate multiple email addresses in a single request (up to 1000). Returns individual results and a summary with valid/invalid/unknown counts.',
+      inputSchema: z.object({
+        emails: z
+          .array(z.string())
+          .min(1, 'At least one email is required')
+          .max(1000, 'Maximum 1000 emails per request')
+          .describe('Array of email addresses to validate'),
+      }),
+    },
+    async ({ emails }) => {
+      try {
+        const { ok, status, data } = await callApi(
+          '/v1/verify/bulk',
+          'POST',
+          { emails }
+        );
+
+        if (!ok) {
+          const error = formatApiError(status, data);
+          return {
+            content: [{ type: 'text' as const, text: error.text }],
+            isError: true,
+          };
+        }
+
+        return {
+          content: [
+            { type: 'text' as const, text: JSON.stringify(data, null, 2) },
+          ],
+        };
+      } catch (error) {
+        const message =
+          error instanceof Error ? error.message : 'Unknown error';
+        return {
+          content: [
+            {
+              type: 'text' as const,
+              text: `Failed to validate emails: ${message}`,
+            },
+          ],
+          isError: true,
+        };
+      }
+    }
+  );
+
+  server.registerTool(
+    'check_usage',
+    {
+      title: 'Check Usage',
+      description:
+        'Check your ValidKit API usage stats including validations used, limit, remaining, and reset date.',
+    },
+    async () => {
+      try {
+        const { ok, status, data } = await callApi('/v1/stats', 'GET');
+
+        if (!ok) {
+          const error = formatApiError(status, data);
+          return {
+            content: [{ type: 'text' as const, text: error.text }],
+            isError: true,
+          };
+        }
+
+        return {
+          content: [
+            { type: 'text' as const, text: JSON.stringify(data, null, 2) },
+          ],
+        };
+      } catch (error) {
+        const message =
+          error instanceof Error ? error.message : 'Unknown error';
+        return {
+          content: [
+            {
+              type: 'text' as const,
+              text: `Failed to check usage: ${message}`,
+            },
+          ],
+          isError: true,
+        };
+      }
+    }
+  );
+
+  return server;
+}
+
+/* v8 ignore start */
+async function main() {
+  const server = createServer();
+  const transport = new StdioServerTransport();
+  await server.connect(transport);
+}
+
+// Only auto-start when run directly (not when imported by tests)
+const isDirectRun =
+  process.argv[1] &&
+  (process.argv[1].endsWith('/index.js') ||
+    process.argv[1].endsWith('/index.ts'));
+
+if (isDirectRun) {
+  main().catch((error) => {
+    console.error('Fatal error:', error);
+    process.exit(1);
+  });
+}
+/* v8 ignore stop */
