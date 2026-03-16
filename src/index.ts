@@ -1,11 +1,11 @@
 #!/usr/bin/env node
-import { resolve } from 'node:path';
+import { realpathSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { z } from 'zod';
 
-export const VERSION = '1.1.0';
+export const VERSION = '1.1.1';
 const REQUEST_TIMEOUT_MS = 30_000;
 
 export function formatCatchError(error: unknown, prefix: string): string {
@@ -280,7 +280,8 @@ async function main() {
 }
 
 const currentFile = fileURLToPath(import.meta.url);
-const isDirectRun = process.argv[1] && resolve(process.argv[1]) === currentFile;
+const isDirectRun =
+  process.argv[1] && realpathSync(process.argv[1]) === currentFile;
 
 if (isDirectRun) {
   main().catch((error) => {

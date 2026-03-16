@@ -485,7 +485,7 @@ describe('ValidKit MCP Server', () => {
         expect.objectContaining({
           headers: expect.objectContaining({
             'X-API-Key': 'vk_test_mykey',
-            'User-Agent': 'validkit-mcp/1.1.0',
+            'User-Agent': 'validkit-mcp/1.1.1',
             'Content-Type': 'application/json',
           }),
         })
@@ -725,6 +725,77 @@ describe('ValidKit MCP Server', () => {
       await expect(callApi('/v1/verify', 'POST', circular)).rejects.toThrow(
         'Failed to serialize request body'
       );
+    });
+  });
+
+  describe('integration: entrypoint', () => {
+    const MCP_INIT = JSON.stringify({
+      jsonrpc: '2.0',
+      id: 1,
+      method: 'initialize',
+      params: {
+        protocolVersion: '2024-11-05',
+        capabilities: {},
+        clientInfo: { name: 'test', version: '1.0.0' },
+      },
+    });
+
+    async function spawnAndSend(entrypoint: string): Promise<string> {
+      const { spawn } = await import('node:child_process');
+      return new Promise((resolve, reject) => {
+        const child = spawn('node', [entrypoint], {
+          env: { ...process.env, VALIDKIT_API_KEY: 'vk_test_integration' },
+          stdio: ['pipe', 'pipe', 'pipe'],
+        });
+
+        let stdout = '';
+        child.stdout.on('data', (chunk: Buffer) => {
+          stdout += chunk.toString();
+          // Got a response — kill the server
+          child.kill();
+        });
+
+        child.on('close', () => resolve(stdout));
+        child.on('error', reject);
+
+        const timer = setTimeout(() => {
+          child.kill();
+          reject(new Error('Timed out'));
+        }, 10_000);
+        child.on('close', () => clearTimeout(timer));
+
+        child.stdin.write(MCP_INIT + '\n');
+        child.stdin.end();
+      });
+    }
+
+    it('starts and responds to MCP initialize when invoked directly', async () => {
+      const { join } = await import('node:path');
+      const distIndex = join(process.cwd(), 'dist', 'index.js');
+
+      const output = await spawnAndSend(distIndex);
+      const response = JSON.parse(output.trim());
+      expect(response.result.serverInfo.name).toBe('validkit');
+      expect(response.result.serverInfo.version).toBe('1.1.1');
+    });
+
+    it('starts and responds when invoked via symlink (npx simulation)', async () => {
+      const { join } = await import('node:path');
+      const { symlinkSync, unlinkSync } = await import('node:fs');
+      const { tmpdir } = await import('node:os');
+
+      const distIndex = join(process.cwd(), 'dist', 'index.js');
+      const symlink = join(tmpdir(), `validkit-mcp-test-${Date.now()}`);
+      symlinkSync(distIndex, symlink);
+
+      try {
+        const output = await spawnAndSend(symlink);
+        const response = JSON.parse(output.trim());
+        expect(response.result.serverInfo.name).toBe('validkit');
+        expect(response.result.serverInfo.version).toBe('1.1.1');
+      } finally {
+        unlinkSync(symlink);
+      }
     });
   });
 });
