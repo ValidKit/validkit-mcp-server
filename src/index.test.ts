@@ -131,7 +131,7 @@ describe('ValidKit MCP Server', () => {
       expect(parsed.valid).toBe(true);
 
       expect(mockFetch).toHaveBeenCalledWith(
-        'https://api.validkit.com/v1/verify',
+        'https://api.validkit.com/api/v1/verify',
         expect.objectContaining({
           method: 'POST',
           body: JSON.stringify({ email: 'test@gmail.com' }),
@@ -278,7 +278,7 @@ describe('ValidKit MCP Server', () => {
 
       // Verify correct endpoint and body
       expect(mockFetch).toHaveBeenCalledWith(
-        'https://api.validkit.com/v1/verify/bulk',
+        'https://api.validkit.com/api/v1/verify/bulk',
         expect.objectContaining({
           body: JSON.stringify({ emails: ['a@gmail.com', 'b@fake.xyz'] }),
         })
@@ -370,7 +370,7 @@ describe('ValidKit MCP Server', () => {
       expect(parsed.remaining).toBe(958);
 
       expect(mockFetch).toHaveBeenCalledWith(
-        'https://api.validkit.com/v1/stats',
+        'https://api.validkit.com/api/v1/stats',
         expect.objectContaining({ method: 'GET' })
       );
     });
@@ -465,7 +465,7 @@ describe('ValidKit MCP Server', () => {
       });
 
       expect(mockFetch).toHaveBeenCalledWith(
-        'https://custom.api.com/v1/verify',
+        'https://custom.api.com/api/v1/verify',
         expect.anything()
       );
     });
@@ -485,7 +485,7 @@ describe('ValidKit MCP Server', () => {
         expect.objectContaining({
           headers: expect.objectContaining({
             'X-API-Key': 'vk_test_mykey',
-            'User-Agent': 'validkit-mcp/1.1.1',
+            'User-Agent': 'validkit-mcp/1.1.2',
             'Content-Type': 'application/json',
           }),
         })
@@ -595,7 +595,7 @@ describe('ValidKit MCP Server', () => {
       });
 
       expect(mockFetch).toHaveBeenCalledWith(
-        'https://api.validkit.com/v1/verify',
+        'https://api.validkit.com/api/v1/verify',
         expect.anything()
       );
     });
@@ -722,7 +722,7 @@ describe('ValidKit MCP Server', () => {
       const circular: Record<string, unknown> = {};
       circular.self = circular;
 
-      await expect(callApi('/v1/verify', 'POST', circular)).rejects.toThrow(
+      await expect(callApi('/api/v1/verify', 'POST', circular)).rejects.toThrow(
         'Failed to serialize request body'
       );
     });
@@ -776,7 +776,7 @@ describe('ValidKit MCP Server', () => {
       const output = await spawnAndSend(distIndex);
       const response = JSON.parse(output.trim());
       expect(response.result.serverInfo.name).toBe('validkit');
-      expect(response.result.serverInfo.version).toBe('1.1.1');
+      expect(response.result.serverInfo.version).toBe('1.1.2');
     });
 
     it('starts and responds when invoked via symlink (npx simulation)', async () => {
@@ -792,7 +792,7 @@ describe('ValidKit MCP Server', () => {
         const output = await spawnAndSend(symlink);
         const response = JSON.parse(output.trim());
         expect(response.result.serverInfo.name).toBe('validkit');
-        expect(response.result.serverInfo.version).toBe('1.1.1');
+        expect(response.result.serverInfo.version).toBe('1.1.2');
       } finally {
         unlinkSync(symlink);
       }

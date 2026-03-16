@@ -5,7 +5,7 @@ import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { z } from 'zod';
 
-export const VERSION = '1.1.1';
+export const VERSION = '1.1.2';
 const REQUEST_TIMEOUT_MS = 30_000;
 
 export function formatCatchError(error: unknown, prefix: string): string {
@@ -151,7 +151,7 @@ export function createServer(): McpServer {
     },
     async ({ email }) => {
       try {
-        const { ok, status, data } = await callApi('/v1/verify', 'POST', {
+        const { ok, status, data } = await callApi('/api/v1/verify', 'POST', {
           email,
         });
 
@@ -199,7 +199,7 @@ export function createServer(): McpServer {
     async ({ emails }) => {
       try {
         const { ok, status, data } = await callApi(
-          '/v1/verify/bulk',
+          '/api/v1/verify/bulk',
           'POST',
           { emails }
         );
@@ -240,7 +240,7 @@ export function createServer(): McpServer {
     },
     async () => {
       try {
-        const { ok, status, data } = await callApi('/v1/stats', 'GET');
+        const { ok, status, data } = await callApi('/api/v1/stats', 'GET');
 
         if (!ok) {
           const error = formatApiError(status, data);
