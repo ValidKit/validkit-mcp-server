@@ -1,0 +1,46 @@
+{
+  "name": "@validkit/mcp-server",
+  "version": "1.0.0",
+  "description": "Model Context Protocol (MCP) server for ValidKit email validation - works with any MCP-compatible AI assistant",
+  "main": "dist/index.js",
+  "type": "module",
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "dev": "tsx src/index.ts",
+    "test": "tsx src/cli.ts",
+    "prepare": "npm run build"
+  },
+  "bin": {
+    "validkit-mcp": "./dist/index.js",
+    "validkit-mcp-test": "./dist/cli.js"
+  },
+  "keywords": [
+    "mcp",
+    "email-validation",
+    "validkit",
+    "model-context-protocol",
+    "claude",
+    "ai-tools"
+  ],
+  "author": "ValidKit",
+  "license": "MIT",
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^0.3.0",
+    "axios": "^1.6.2",
+    "dotenv": "^16.3.1"
+  },
+  "devDependencies": {
+    "@types/node": "^20.10.0",
+    "tsx": "^4.7.0",
+    "typescript": "^5.3.2"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/jesselpalmer/validkit-mcp-server.git"
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ]
+}
