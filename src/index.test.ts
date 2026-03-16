@@ -571,6 +571,19 @@ describe('ValidKit MCP Server', () => {
       expect(getText(result)).toContain('query parameters');
     });
 
+    it('rejects URL with hash fragment', async () => {
+      process.env.VALIDKIT_API_URL = 'https://api.validkit.com#section';
+      const { client } = await createTestClient();
+
+      const result = await client.callTool({
+        name: 'validate_email',
+        arguments: { email: 'test@gmail.com' },
+      });
+
+      expect(result.isError).toBe(true);
+      expect(getText(result)).toContain('fragments');
+    });
+
     it('strips trailing slash from URL', async () => {
       process.env.VALIDKIT_API_URL = 'https://api.validkit.com/';
       const { client } = await createTestClient();
