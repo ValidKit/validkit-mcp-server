@@ -1,12 +1,20 @@
 #!/usr/bin/env node
+import { fileURLToPath } from 'node:url';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { z } from 'zod';
 
 export const VERSION = '1.1.0';
+const REQUEST_TIMEOUT_MS = 30_000;
 
 export function getApiBaseUrl(): string {
-  return process.env.VALIDKIT_API_URL || 'https://api.validkit.com';
+  const url = process.env.VALIDKIT_API_URL || 'https://api.validkit.com';
+  if (!url.startsWith('https://')) {
+    throw new Error(
+      `VALIDKIT_API_URL must use https:// (got "${url}")`
+    );
+  }
+  return url;
 }
 
 export function getApiKey(): string {
@@ -28,15 +36,26 @@ export async function callApi(
 
   const response = await fetch(`${getApiBaseUrl()}${path}`, {
     method,
+    signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
     headers: {
       'X-API-Key': apiKey,
-      'Content-Type': 'application/json',
       'User-Agent': `validkit-mcp/${VERSION}`,
+      ...(body !== undefined ? { 'Content-Type': 'application/json' } : {}),
     },
     ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
   });
 
-  const data = await response.json();
+  let data: unknown;
+  try {
+    data = await response.json();
+  } catch {
+    data = {
+      error: {
+        message: `Non-JSON response (HTTP ${response.status})`,
+      },
+    };
+  }
+
   return { ok: response.ok, status: response.status, data };
 }
 
@@ -224,11 +243,8 @@ async function main() {
   await server.connect(transport);
 }
 
-// Only auto-start when run directly (not when imported by tests)
-const isDirectRun =
-  process.argv[1] &&
-  (process.argv[1].endsWith('/index.js') ||
-    process.argv[1].endsWith('/index.ts'));
+const currentFile = fileURLToPath(import.meta.url);
+const isDirectRun = process.argv[1] === currentFile;
 
 if (isDirectRun) {
   main().catch((error) => {

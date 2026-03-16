@@ -467,7 +467,7 @@ describe('ValidKit MCP Server', () => {
       );
     });
 
-    it('GET requests do not include body', async () => {
+    it('GET requests do not include body or Content-Type', async () => {
       const { client } = await createTestClient();
       mockFetchResponse(200, { used: 0, limit: 1000 });
 
@@ -478,6 +478,66 @@ describe('ValidKit MCP Server', () => {
 
       const callArgs = mockFetch.mock.calls[0][1];
       expect(callArgs.body).toBeUndefined();
+      expect(callArgs.headers['Content-Type']).toBeUndefined();
+    });
+
+    it('POST requests include Content-Type', async () => {
+      const { client } = await createTestClient();
+      mockFetchResponse(200, { email: 'a@b.com', valid: true });
+
+      await client.callTool({
+        name: 'validate_email',
+        arguments: { email: 'a@b.com' },
+      });
+
+      const callArgs = mockFetch.mock.calls[0][1];
+      expect(callArgs.headers['Content-Type']).toBe('application/json');
+    });
+
+    it('rejects non-https VALIDKIT_API_URL', async () => {
+      process.env.VALIDKIT_API_URL = 'http://evil.com';
+      const { client } = await createTestClient();
+
+      const result = await client.callTool({
+        name: 'validate_email',
+        arguments: { email: 'test@gmail.com' },
+      });
+
+      expect(result.isError).toBe(true);
+      expect(getText(result)).toContain('must use https://');
+    });
+
+    it('handles non-JSON API response gracefully', async () => {
+      const { client } = await createTestClient();
+      mockFetch.mockResolvedValueOnce({
+        ok: false,
+        status: 502,
+        json: async () => {
+          throw new SyntaxError('Unexpected token <');
+        },
+      });
+
+      const result = await client.callTool({
+        name: 'validate_email',
+        arguments: { email: 'test@gmail.com' },
+      });
+
+      expect(result.isError).toBe(true);
+      expect(getText(result)).toContain('Non-JSON response');
+      expect(getText(result)).toContain('502');
+    });
+
+    it('includes abort signal for timeout', async () => {
+      const { client } = await createTestClient();
+      mockFetchResponse(200, { email: 'a@b.com', valid: true });
+
+      await client.callTool({
+        name: 'validate_email',
+        arguments: { email: 'a@b.com' },
+      });
+
+      const callArgs = mockFetch.mock.calls[0][1];
+      expect(callArgs.signal).toBeDefined();
     });
 
     it('missing API key error on bulk endpoint', async () => {
