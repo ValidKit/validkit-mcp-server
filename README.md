@@ -88,10 +88,10 @@ Validate up to 1,000 emails in one request. Returns individual results and summa
 
 ### `check_usage`
 
-Check your API usage — validations used, limit, remaining, and reset date.
+Check your API usage stats — total requests, valid/invalid counts, average response time, and rate limit.
 
 ```
-"How many validations do I have left?"
+"Show my ValidKit usage stats"
 ```
 
 ## Environment Variables

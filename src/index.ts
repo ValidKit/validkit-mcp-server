@@ -179,7 +179,7 @@ export function createServer(): McpServer {
     {
       title: 'Check Usage',
       description:
-        'Check your ValidKit API usage stats including validations used, limit, remaining, and reset date.',
+        'Check your ValidKit API usage stats for the current period. Returns total requests, valid/invalid counts, average response time, and rate limit.',
     },
     async () => {
       try {
