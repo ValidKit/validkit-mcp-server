@@ -1,13 +1,18 @@
 # ValidKit MCP Server
 
-Email validation for AI coding assistants. Validate emails directly from Claude Code, Cursor, Windsurf, and any MCP-compatible tool.
+[![npm downloads](https://img.shields.io/npm/dw/@validkit/mcp-server)](https://www.npmjs.com/package/@validkit/mcp-server)
+[![npm version](https://img.shields.io/npm/v/@validkit/mcp-server)](https://www.npmjs.com/package/@validkit/mcp-server)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5.0%2B-blue)](https://www.typescriptlang.org/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+
+[Model Context Protocol](https://modelcontextprotocol.io/) (MCP) server for [ValidKit](https://validkit.com?utm_source=github&utm_medium=readme&utm_campaign=mcp-server) email validation. Validate emails directly from Claude Code, Cursor, Windsurf, and any MCP-compatible AI assistant -- syntax checks, MX record verification, disposable detection, and typo suggestions, all without leaving your editor.
 
 ## Setup
 
 ### Claude Code
 
 ```bash
-claude mcp add validkit -e VALIDKIT_API_KEY=your_key -- npx -y @validkit/mcp-server
+claude mcp add validkit -e VALIDKIT_API_KEY=vk_your_api_key -- npx -y @validkit/mcp-server
 ```
 
 ### Cursor
@@ -66,7 +71,7 @@ Add to `~/Library/Application Support/Claude/claude_desktop_config.json`:
 
 ## Get Your API Key
 
-Sign up for free at [validkit.com/get-started](https://validkit.com/get-started) — 1,000 validations/month included.
+Sign up for free at [validkit.com/get-started](https://validkit.com/get-started?utm_source=github&utm_medium=readme&utm_campaign=mcp-server) -- 1,000 validations/month included.
 
 ## Tools
 
@@ -106,6 +111,14 @@ Check your API usage stats — total requests, valid/invalid counts, average res
 ```bash
 VALIDKIT_API_KEY=vk_test_... npx @modelcontextprotocol/inspector npx -y @validkit/mcp-server
 ```
+
+## Links
+
+- [ValidKit Homepage](https://validkit.com?utm_source=github&utm_medium=readme&utm_campaign=mcp-server)
+- [API Documentation](https://docs.validkit.com?utm_source=github&utm_medium=readme&utm_campaign=mcp-server)
+- [GitHub Repository](https://github.com/ValidKit/validkit-mcp-server)
+- [npm Package](https://www.npmjs.com/package/@validkit/mcp-server)
+- [MCP Protocol](https://modelcontextprotocol.io/)
 
 ## License
 
