@@ -565,5 +565,64 @@ describe('ValidKit MCP Server', () => {
       expect(result.isError).toBe(true);
       expect(getText(result)).toContain('VALIDKIT_API_KEY');
     });
+
+    it('trims whitespace from API key', async () => {
+      process.env.VALIDKIT_API_KEY = '  vk_test_padded  ';
+      const { client } = await createTestClient();
+      mockFetchResponse(200, { email: 'a@b.com', valid: true });
+
+      await client.callTool({
+        name: 'validate_email',
+        arguments: { email: 'a@b.com' },
+      });
+
+      expect(mockFetch).toHaveBeenCalledWith(
+        expect.any(String),
+        expect.objectContaining({
+          headers: expect.objectContaining({
+            'X-API-Key': 'vk_test_padded',
+          }),
+        })
+      );
+    });
+
+    it('handles non-JSON response on 200 as error', async () => {
+      const { client } = await createTestClient();
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: async () => {
+          throw new SyntaxError('Unexpected token <');
+        },
+      });
+
+      const result = await client.callTool({
+        name: 'validate_email',
+        arguments: { email: 'test@gmail.com' },
+      });
+
+      expect(result.isError).toBe(true);
+      expect(getText(result)).toContain('Non-JSON response');
+      expect(getText(result)).toContain('200');
+    });
+
+    it('shows user-friendly timeout error message', async () => {
+      const { client } = await createTestClient();
+      const timeoutError = new DOMException(
+        'The operation was aborted',
+        'TimeoutError'
+      );
+      mockFetch.mockRejectedValueOnce(timeoutError);
+
+      const result = await client.callTool({
+        name: 'validate_email',
+        arguments: { email: 'test@gmail.com' },
+      });
+
+      expect(result.isError).toBe(true);
+      expect(getText(result)).toContain('timed out');
+      expect(getText(result)).toContain('30 seconds');
+      expect(getText(result)).not.toContain('was aborted');
+    });
   });
 });

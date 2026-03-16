@@ -8,6 +8,14 @@ import { z } from 'zod';
 export const VERSION = '1.1.0';
 const REQUEST_TIMEOUT_MS = 30_000;
 
+export function formatCatchError(error: unknown, prefix: string): string {
+  if (error instanceof DOMException && error.name === 'TimeoutError') {
+    return `${prefix}: Request timed out after ${REQUEST_TIMEOUT_MS / 1000} seconds. The ValidKit API may be slow or unreachable. Try again.`;
+  }
+  const message = error instanceof Error ? error.message : 'Unknown error';
+  return `${prefix}: ${message}`;
+}
+
 export function getApiBaseUrl(): string {
   const url = process.env.VALIDKIT_API_URL || 'https://api.validkit.com';
   if (!url.startsWith('https://')) {
@@ -25,7 +33,7 @@ export function getApiKey(): string {
       'VALIDKIT_API_KEY environment variable is required. Get your free API key at https://validkit.com/get-started'
     );
   }
-  return key;
+  return key.trim();
 }
 
 export async function callApi(
@@ -50,9 +58,13 @@ export async function callApi(
   try {
     data = await response.json();
   } catch {
-    data = {
-      error: {
-        message: `Non-JSON response (HTTP ${response.status})`,
+    return {
+      ok: false,
+      status: response.status,
+      data: {
+        error: {
+          message: `Non-JSON response (HTTP ${response.status})`,
+        },
       },
     };
   }
@@ -128,13 +140,11 @@ export function createServer(): McpServer {
           ],
         };
       } catch (error) {
-        const message =
-          error instanceof Error ? error.message : 'Unknown error';
         return {
           content: [
             {
               type: 'text' as const,
-              text: `Failed to validate email: ${message}`,
+              text: formatCatchError(error, 'Failed to validate email'),
             },
           ],
           isError: true,
@@ -179,13 +189,11 @@ export function createServer(): McpServer {
           ],
         };
       } catch (error) {
-        const message =
-          error instanceof Error ? error.message : 'Unknown error';
         return {
           content: [
             {
               type: 'text' as const,
-              text: `Failed to validate emails: ${message}`,
+              text: formatCatchError(error, 'Failed to validate emails'),
             },
           ],
           isError: true,
@@ -219,13 +227,11 @@ export function createServer(): McpServer {
           ],
         };
       } catch (error) {
-        const message =
-          error instanceof Error ? error.message : 'Unknown error';
         return {
           content: [
             {
               type: 'text' as const,
-              text: `Failed to check usage: ${message}`,
+              text: formatCatchError(error, 'Failed to check usage'),
             },
           ],
           isError: true,
