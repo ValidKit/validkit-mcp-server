@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
@@ -244,7 +245,7 @@ async function main() {
 }
 
 const currentFile = fileURLToPath(import.meta.url);
-const isDirectRun = process.argv[1] === currentFile;
+const isDirectRun = process.argv[1] && resolve(process.argv[1]) === currentFile;
 
 if (isDirectRun) {
   main().catch((error) => {
