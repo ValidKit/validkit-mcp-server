@@ -13,7 +13,7 @@
     "prepare": "npm run build"
   },
   "bin": {
-    "validkit-mcp": "./dist/index.js"
+    "validkit-mcp": "dist/index.js"
   },
   "keywords": [
     "mcp",
@@ -43,7 +43,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/ValidKit/validkit-mcp-server.git"
+    "url": "git+https://github.com/ValidKit/validkit-mcp-server.git"
   },
   "files": [
     "dist",
