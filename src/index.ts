@@ -17,13 +17,31 @@ export function formatCatchError(error: unknown, prefix: string): string {
 }
 
 export function getApiBaseUrl(): string {
-  const url = process.env.VALIDKIT_API_URL || 'https://api.validkit.com';
-  if (!url.startsWith('https://')) {
+  const raw = process.env.VALIDKIT_API_URL || 'https://api.validkit.com';
+  if (!raw.startsWith('https://')) {
     throw new Error(
-      `VALIDKIT_API_URL must use https:// (got "${url}")`
+      `VALIDKIT_API_URL must use https:// (got "${raw}")`
     );
   }
-  return url;
+  let parsed: URL;
+  try {
+    parsed = new URL(raw);
+  } catch {
+    throw new Error(
+      `VALIDKIT_API_URL is not a valid URL (got "${raw}")`
+    );
+  }
+  if (parsed.pathname !== '/' && parsed.pathname !== '') {
+    throw new Error(
+      `VALIDKIT_API_URL must be an origin URL without a path (got "${raw}"). Use "https://api.validkit.com" not "https://api.validkit.com/v1"`
+    );
+  }
+  if (parsed.search || parsed.hash) {
+    throw new Error(
+      `VALIDKIT_API_URL must not include query parameters or fragments (got "${raw}")`
+    );
+  }
+  return raw.replace(/\/+$/, '');
 }
 
 export function getApiKey(): string {
@@ -43,15 +61,26 @@ export async function callApi(
 ): Promise<{ ok: boolean; status: number; data: unknown }> {
   const apiKey = getApiKey();
 
+  let serializedBody: string | undefined;
+  if (body !== undefined) {
+    try {
+      serializedBody = JSON.stringify(body);
+    } catch {
+      throw new Error('Failed to serialize request body');
+    }
+  }
+
   const response = await fetch(`${getApiBaseUrl()}${path}`, {
     method,
     signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
     headers: {
       'X-API-Key': apiKey,
       'User-Agent': `validkit-mcp/${VERSION}`,
-      ...(body !== undefined ? { 'Content-Type': 'application/json' } : {}),
+      ...(serializedBody !== undefined
+        ? { 'Content-Type': 'application/json' }
+        : {}),
     },
-    ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
+    ...(serializedBody !== undefined ? { body: serializedBody } : {}),
   });
 
   let data: unknown;

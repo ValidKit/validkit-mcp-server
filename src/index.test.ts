@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
-import { createServer } from './index.js';
+import { createServer, callApi } from './index.js';
 
 // Mock fetch globally
 const mockFetch = vi.fn();
@@ -276,11 +276,36 @@ describe('ValidKit MCP Server', () => {
       expect(parsed.results).toHaveLength(2);
       expect(parsed.summary.total).toBe(2);
 
-      // Verify correct endpoint (not /v1/verify/batch)
+      // Verify correct endpoint and body
       expect(mockFetch).toHaveBeenCalledWith(
         'https://api.validkit.com/v1/verify/bulk',
-        expect.anything()
+        expect.objectContaining({
+          body: JSON.stringify({ emails: ['a@gmail.com', 'b@fake.xyz'] }),
+        })
       );
+    });
+
+    it('rejects empty emails array via Zod schema', async () => {
+      const { client } = await createTestClient();
+
+      const result = await client.callTool({
+        name: 'validate_emails_bulk',
+        arguments: { emails: [] },
+      });
+
+      expect(result.isError).toBe(true);
+    });
+
+    it('rejects >1000 emails via Zod schema', async () => {
+      const { client } = await createTestClient();
+      const tooMany = Array.from({ length: 1001 }, (_, i) => `u${i}@test.com`);
+
+      const result = await client.callTool({
+        name: 'validate_emails_bulk',
+        arguments: { emails: tooMany },
+      });
+
+      expect(result.isError).toBe(true);
     });
 
     it('handles API error on bulk', async () => {
@@ -507,6 +532,61 @@ describe('ValidKit MCP Server', () => {
       expect(getText(result)).toContain('must use https://');
     });
 
+    it('rejects URL with path', async () => {
+      process.env.VALIDKIT_API_URL = 'https://api.validkit.com/v1';
+      const { client } = await createTestClient();
+
+      const result = await client.callTool({
+        name: 'validate_email',
+        arguments: { email: 'test@gmail.com' },
+      });
+
+      expect(result.isError).toBe(true);
+      expect(getText(result)).toContain('origin URL without a path');
+    });
+
+    it('rejects invalid URL', async () => {
+      process.env.VALIDKIT_API_URL = 'https://not a valid url';
+      const { client } = await createTestClient();
+
+      const result = await client.callTool({
+        name: 'validate_email',
+        arguments: { email: 'test@gmail.com' },
+      });
+
+      expect(result.isError).toBe(true);
+      expect(getText(result)).toContain('not a valid URL');
+    });
+
+    it('rejects URL with query params', async () => {
+      process.env.VALIDKIT_API_URL = 'https://api.validkit.com?foo=bar';
+      const { client } = await createTestClient();
+
+      const result = await client.callTool({
+        name: 'validate_email',
+        arguments: { email: 'test@gmail.com' },
+      });
+
+      expect(result.isError).toBe(true);
+      expect(getText(result)).toContain('query parameters');
+    });
+
+    it('strips trailing slash from URL', async () => {
+      process.env.VALIDKIT_API_URL = 'https://api.validkit.com/';
+      const { client } = await createTestClient();
+      mockFetchResponse(200, { email: 'a@b.com', valid: true });
+
+      await client.callTool({
+        name: 'validate_email',
+        arguments: { email: 'a@b.com' },
+      });
+
+      expect(mockFetch).toHaveBeenCalledWith(
+        'https://api.validkit.com/v1/verify',
+        expect.anything()
+      );
+    });
+
     it('handles non-JSON API response gracefully', async () => {
       const { client } = await createTestClient();
       mockFetch.mockResolvedValueOnce({
@@ -623,6 +703,15 @@ describe('ValidKit MCP Server', () => {
       expect(getText(result)).toContain('timed out');
       expect(getText(result)).toContain('30 seconds');
       expect(getText(result)).not.toContain('was aborted');
+    });
+
+    it('throws clear error when body cannot be serialized', async () => {
+      const circular: Record<string, unknown> = {};
+      circular.self = circular;
+
+      await expect(callApi('/v1/verify', 'POST', circular)).rejects.toThrow(
+        'Failed to serialize request body'
+      );
     });
   });
 });
